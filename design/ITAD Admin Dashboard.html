@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ITAD Intelligence – Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#f7f8f5;--bg2:#ffffff;--bg3:#f0f1ee;
+  --border:#e8e9ec;--border2:#d1d5db;
+  --text:#111118;--muted:#6b7180;
+  --green:#1a9e57;--green-bg:#e6f7ee;
+  --amber:#d97706;--amber-bg:#fef9c3;
+  --red:#dc2626;--red-bg:#fee2e2;
+  --blue:#2563eb;--blue-bg:#eff6ff;
+  --mint:#e4f5ed;--lavender:#ede8ff;--peach:#fff0e6;--yellow:#fffbe5;--sky:#e4f0fc;
+}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;height:100vh;overflow:hidden;}
+#root{height:100vh;display:flex;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+/* [Full Admin Dashboard React code - design reference] */
+const { useState, useEffect } = React;
+const USERS_DATA = [
+  {id:1,name:'John Doe',email:'john@itadintel.io',plan:'Pro',agents:14,projects:4,joined:'Jan 12, 2026',status:'active',compute:62},
+  {id:2,name:'Sarah Kim',email:'sarah@govprocure.com',plan:'Enterprise',agents:47,projects:12,joined:'Feb 3, 2026',status:'active',compute:88},
+  {id:3,name:'Mike Torres',email:'mike@itassets.net',plan:'Starter',agents:3,projects:2,joined:'Mar 1, 2026',status:'active',compute:41},
+  {id:4,name:'Priya Nair',email:'priya@bidwatch.io',plan:'Pro',agents:18,projects:7,joined:'Mar 15, 2026',status:'active',compute:74},
+  {id:5,name:'Dan Chu',email:'dan@surplustech.co',plan:'Pro',agents:11,projects:5,joined:'Apr 2, 2026',status:'suspended',compute:0},
+];
+ReactDOM.createRoot(document.getElementById('root')).render(<div style={{padding:40,fontFamily:'Space Grotesk',fontSize:'1.2rem'}}>Admin Dashboard Design Reference — open original HTML</div>);
+</script>
+</body>
+</html>

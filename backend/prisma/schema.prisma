@@ -1,0 +1,185 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  name          String
+  role          String    @default("user")       // user | admin
+  plan          String    @default("starter")    // starter | pro | enterprise
+  computeBudget Int       @default(5)             // max concurrent agents
+  status        String    @default("active")     // active | suspended
+  projects      Project[]
+  dlqEvents     DlqEvent[]
+  refreshTokens RefreshToken[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Project {
+  id          String    @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  status      String    @default("active")       // active | paused | archived
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  websites    Website[]
+  dlqEvents   DlqEvent[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model Website {
+  id          String    @id @default(cuid())
+  projectId   String
+  userId      String
+  url         String
+  depth       Int       @default(2)
+  crawlBudget Int       @default(200)
+  schedule    String?
+  status      String    @default("idle")          // idle | crawling | queued | failed | paused
+  priority    String    @default("medium")        // high | medium | low
+  lastCrawled DateTime?
+  totalPages  Int       @default(0)
+  yieldRate   Float     @default(0)
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  jobs        Job[]
+  results     Result[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([projectId])
+  @@index([userId])
+}
+
+model Job {
+  id           String    @id @default(cuid())
+  websiteId    String
+  projectId    String
+  userId       String
+  url          String
+  status       String    @default("pending")      // pending | active | completed | failed
+  retries      Int       @default(0)
+  proxyTier    Int?
+  proxyId      String?
+  errorType    String?
+  errorDetail  String?
+  pagesScraped Int       @default(0)
+  duration     Int?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  website      Website   @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+
+  @@index([websiteId])
+  @@index([projectId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Result {
+  id             String   @id @default(cuid())
+  websiteId      String
+  projectId      String
+  userId         String
+  url            String
+  title          String?
+  bodySnippet    String?
+  classification String                           // bidding | selling | informational | irrelevant
+  confidence     Float
+  reason         String?
+  rawContent     Json?
+  website        Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  foundAt        DateTime @default(now())
+
+  @@index([websiteId])
+  @@index([projectId])
+  @@index([userId])
+  @@index([classification])
+}
+
+model DlqEvent {
+  id          String   @id @default(cuid())
+  projectId   String
+  websiteId   String
+  userId      String
+  url         String
+  errorType   String                              // timeout | 403_blocked | proxy_exhaustion | parse_failure | domain_expired
+  payload     Json
+  status      String   @default("pending")        // pending | retried | archived
+  retry1At    DateTime?
+  retry2At    DateTime?
+  retry3At    DateTime?
+  resolvedAt  DateTime?
+  project     Project  @relation(fields: [projectId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([projectId])
+  @@index([errorType])
+  @@index([status])
+  @@index([userId])
+}
+
+model ProxyHealth {
+  id             String    @id @default(cuid())
+  proxyUrl       String    @unique
+  tier           Int                              // 1 | 2 | 3
+  proxyType      String                           // residential | datacenter | rotating
+  ipDisplay      String
+  successRate    Float     @default(1.0)
+  totalRequests  Int       @default(0)
+  cooldownUntil  DateTime?
+  blockedDomains String[]  @default([])
+  lastUsed       DateTime?
+  status         String    @default("active")     // active | idle | quarantined
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model TargetPattern {
+  id              String   @id @default(cuid())
+  keyword         String   @unique
+  source          String   @default("seed")       // seed | learned
+  confidenceScore Float    @default(0.5)
+  matchCount      Int      @default(0)
+  firstSeen       DateTime @default(now())
+  lastMatched     DateTime?
+  status          String   @default("active")     // active | archived | pinned | blocked
+  updatedAt       DateTime @updatedAt
+}
+
+model AgentRegistry {
+  id           String    @id @default(cuid())
+  agentId      String    @unique
+  userId       String?
+  projectId    String?
+  status       String    @default("idle")         // idle | active | draining | terminated
+  currentJob   String?
+  currentUrl   String?
+  pagesScraped Int       @default(0)
+  cpuPercent   Float     @default(0)
+  startedAt    DateTime?
+  heartbeat    DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}

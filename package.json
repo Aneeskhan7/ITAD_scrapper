@@ -1,0 +1,26 @@
+{
+  "name": "itad-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend",
+    "workers",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "concurrently -n backend,workers,frontend -c blue,yellow,green \"npm run dev --workspace=backend\" \"npm run dev --workspace=workers\" \"npm run dev --workspace=frontend\"",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:workers": "npm run dev --workspace=workers",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "db:migrate": "npm run migrate --workspace=backend",
+    "db:studio": "npm run studio --workspace=backend",
+    "db:seed": "npm run seed --workspace=backend",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
