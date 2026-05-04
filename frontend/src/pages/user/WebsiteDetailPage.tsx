@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { StatCard } from '@/components/shared/StatCard';
 import { StatusPill, TypePill } from '@/components/shared/StatusPill';
+import { ChipInput } from '@/components/shared/ChipInput';
 import type { Website, Job, Result } from '@/types';
 
 const PASTEL = ['var(--mint)', 'var(--sky)', 'var(--lavender)', 'var(--yellow)', 'var(--peach)', 'var(--green-bg)'];
@@ -21,11 +23,27 @@ export function WebsiteDetailPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['website', id] }),
   });
 
+  const [editingPatterns, setEditingPatterns] = useState(false);
+  const [draftPatterns, setDraftPatterns] = useState<string[]>([]);
+  useEffect(() => {
+    if (website && !editingPatterns) setDraftPatterns(website.targetPagePatterns ?? []);
+  }, [website, editingPatterns]);
+
+  const savePatterns = useMutation({
+    mutationFn: (patterns: string[]) =>
+      api.patch(`/websites/${id}`, { targetPagePatterns: patterns }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['website', id] });
+      setEditingPatterns(false);
+    },
+  });
+
   const results: Result[] = resultsData?.results ?? [];
 
   if (!website) return <div style={{ padding: 24, color: 'var(--muted)' }}>Loading…</div>;
 
   const latestJob = jobs[0];
+  const patterns = website.targetPagePatterns ?? [];
 
   return (
     <div style={{ padding: 24 }}>
@@ -36,6 +54,47 @@ export function WebsiteDetailPage() {
         <span style={{ color: 'var(--border2)' }}>/</span>
         <span style={{ fontFamily: 'DM Mono', fontSize: '0.78rem', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{website.url}</span>
         <StatusPill status={website.status} />
+      </div>
+
+      <div style={{ background: 'var(--bg2)', border: '1.5px solid var(--border)', borderRadius: 12, padding: '12px 16px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+          Target Page Paths
+        </div>
+        {editingPatterns ? (
+          <>
+            <div style={{ flex: 1, minWidth: 280 }}>
+              <ChipInput
+                value={draftPatterns}
+                onChange={setDraftPatterns}
+                placeholder="/procurement, /bids — leave empty to crawl all pages"
+              />
+            </div>
+            <button onClick={() => savePatterns.mutate(draftPatterns)} disabled={savePatterns.isPending}
+              style={{ padding: '6px 12px', background: 'var(--green)', border: 'none', borderRadius: 6, color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: '0.78rem' }}>
+              Save
+            </button>
+            <button onClick={() => { setEditingPatterns(false); setDraftPatterns(patterns); }}
+              style={{ padding: '6px 10px', background: 'transparent', border: '1.5px solid var(--border)', borderRadius: 6, color: 'var(--muted)', cursor: 'pointer', fontSize: '0.78rem' }}>
+              Cancel
+            </button>
+          </>
+        ) : (
+          <>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, flex: 1 }}>
+              {patterns.length === 0 ? (
+                <span style={{ fontSize: '0.78rem', color: 'var(--muted)', fontStyle: 'italic' }}>
+                  No filter — every same-origin page is eligible.
+                </span>
+              ) : patterns.map(p => (
+                <span key={p} style={{ background: 'var(--mint)', color: 'var(--green)', border: '1px solid #bbf7d0', borderRadius: 5, padding: '2px 8px', fontFamily: 'DM Mono', fontSize: '0.74rem', fontWeight: 600 }}>{p}</span>
+              ))}
+            </div>
+            <button onClick={() => setEditingPatterns(true)}
+              style={{ padding: '5px 10px', background: 'var(--bg)', border: '1.5px solid var(--border)', borderRadius: 6, color: 'var(--muted)', cursor: 'pointer', fontSize: '0.76rem', fontWeight: 600 }}>
+              Edit
+            </button>
+          </>
+        )}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 20 }}>

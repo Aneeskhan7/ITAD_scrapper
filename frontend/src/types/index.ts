@@ -11,8 +11,8 @@ export interface Project {
 
 export interface Website {
   id: string; projectId: string; url: string; depth: number; crawlBudget: number;
-  schedule?: string; status: string; priority: string; lastCrawled?: string;
-  totalPages: number; yieldRate: number; createdAt: string;
+  schedule?: string; status: string; priority: string; targetPagePatterns: string[];
+  lastCrawled?: string; totalPages: number; yieldRate: number; createdAt: string;
 }
 
 export interface Job {

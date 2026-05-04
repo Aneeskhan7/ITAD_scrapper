@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { StatCard } from '@/components/shared/StatCard';
 import { StatusPill } from '@/components/shared/StatusPill';
+import { ChipInput } from '@/components/shared/ChipInput';
 import type { Project, Website } from '@/types';
 
 export function ProjectDetailPage() {
@@ -13,13 +14,20 @@ export function ProjectDetailPage() {
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [newUrl, setNewUrl] = useState('');
+  const [newPatterns, setNewPatterns] = useState<string[]>([]);
 
   const { data: project } = useQuery<Project>({ queryKey: ['project', id], queryFn: () => api.get(`/projects/${id}`).then(r => r.data) });
   const { data: websites = [] } = useQuery<Website[]>({ queryKey: ['websites', id], queryFn: () => api.get(`/websites/project/${id}`).then(r => r.data) });
 
   const addWebsite = useMutation({
-    mutationFn: (url: string) => api.post(`/websites/project/${id}`, { url }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['websites', id] }); setShowAdd(false); setNewUrl(''); },
+    mutationFn: (payload: { url: string; targetPagePatterns: string[] }) =>
+      api.post(`/websites/project/${id}`, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['websites', id] });
+      setShowAdd(false);
+      setNewUrl('');
+      setNewPatterns([]);
+    },
   });
 
   const crawl = useMutation({
@@ -57,13 +65,28 @@ export function ProjectDetailPage() {
         </div>
 
         {showAdd && (
-          <div style={{ padding: '14px 20px', borderBottom: '1.5px solid var(--border)', background: 'var(--mint)', display: 'flex', gap: 8 }}>
-            <input value={newUrl} onChange={e => setNewUrl(e.target.value)} placeholder="https://example.gov/bids"
-              style={{ flex: 1, background: 'var(--bg2)', border: '1.5px solid var(--border)', borderRadius: 7, padding: '8px 12px', color: 'var(--text)', fontSize: '0.875rem', outline: 'none', fontFamily: 'DM Mono' }} />
-            <button onClick={() => newUrl.trim() && addWebsite.mutate(newUrl.trim())} disabled={addWebsite.isPending}
-              style={{ padding: '8px 14px', background: 'var(--green)', border: 'none', borderRadius: 7, color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem' }}>Add</button>
-            <button onClick={() => { setShowAdd(false); setNewUrl(''); }}
-              style={{ padding: '8px 10px', background: 'transparent', border: '1.5px solid var(--border)', borderRadius: 7, color: 'var(--muted)', cursor: 'pointer', fontSize: '0.8rem' }}>✕</button>
+          <div style={{ padding: '14px 20px', borderBottom: '1.5px solid var(--border)', background: 'var(--mint)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={newUrl} onChange={e => setNewUrl(e.target.value)} placeholder="https://example.gov/bids"
+                style={{ flex: 1, background: 'var(--bg2)', border: '1.5px solid var(--border)', borderRadius: 7, padding: '8px 12px', color: 'var(--text)', fontSize: '0.875rem', outline: 'none', fontFamily: 'DM Mono' }} />
+              <button onClick={() => newUrl.trim() && addWebsite.mutate({ url: newUrl.trim(), targetPagePatterns: newPatterns })} disabled={addWebsite.isPending}
+                style={{ padding: '8px 14px', background: 'var(--green)', border: 'none', borderRadius: 7, color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: '0.8rem' }}>Add</button>
+              <button onClick={() => { setShowAdd(false); setNewUrl(''); setNewPatterns([]); }}
+                style={{ padding: '8px 10px', background: 'transparent', border: '1.5px solid var(--border)', borderRadius: 7, color: 'var(--muted)', cursor: 'pointer', fontSize: '0.8rem' }}>✕</button>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--muted)', marginBottom: 4, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                Target Page Paths · optional
+              </label>
+              <ChipInput
+                value={newPatterns}
+                onChange={setNewPatterns}
+                placeholder="Add paths like /procurement, /bids, /surplus — leave empty to crawl all pages"
+              />
+              <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: 4 }}>
+                Press Enter or comma to add. The scraper restricts itself to URLs whose path contains any of these.
+              </div>
+            </div>
           </div>
         )}
 

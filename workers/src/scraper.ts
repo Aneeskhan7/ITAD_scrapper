@@ -1,10 +1,14 @@
 import 'dotenv/config';
+import * as crypto from 'crypto';
 import { Worker, Job } from 'bullmq';
 import { Redis } from 'ioredis';
 import { chromium, Browser, Page } from 'playwright';
 import * as cheerio from 'cheerio';
 import { PrismaClient } from '@prisma/client';
 import { classifyPage } from './classifier';
+
+const FULL_TEXT_CAP_BYTES = 100_000;       // 100 KB cap
+const RESULT_DEDUPE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null });
 const prisma = new PrismaClient();
@@ -52,6 +56,32 @@ function scoreUrl(url: string, anchorText: string, depth: number, historicalDoma
   return Math.min(1, score);
 }
 
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Returns true if the URL's path matches at least one of `patterns` (case-insensitive
+ * substring match), or if `patterns` is empty (no filter).
+ * Patterns are expected pre-normalised: lowercase, leading slash.
+ * Exported so the keyword-scanner worker (Step 3) can reuse the rule.
+ */
+export function matchesTargetPattern(url: string, patterns: string[]): boolean {
+  if (!patterns || patterns.length === 0) return true;
+  let path: string;
+  try { path = new URL(url).pathname.toLowerCase(); } catch { return false; }
+  return patterns.some(p => path.includes(p));
+}
+
+export function capUtf8(s: string, maxBytes: number): string {
+  const buf = Buffer.from(s, 'utf8');
+  if (buf.length <= maxBytes) return s;
+  // Slice and re-decode; trim possible partial multi-byte at the tail.
+  return buf.subarray(0, maxBytes).toString('utf8').replace(/�+$/, '');
+}
+
+export function sha256Hex(s: string): string {
+  return crypto.createHash('sha256').update(s).digest('hex');
+}
+
 // ── Scraper ─────────────────────────────────────────────────────────────────
 let browser: Browser | null = null;
 
@@ -95,9 +125,10 @@ function fetchPageStatic(html: string, baseUrl: string): { title: string; body: 
 
 // ── Worker ──────────────────────────────────────────────────────────────────
 async function processJob(job: Job) {
-  const { jobId, websiteId, projectId, userId, url, depth, crawlBudget } = job.data as {
+  const { jobId, websiteId, projectId, userId, url, depth, crawlBudget, targetPagePatterns = [] } = job.data as {
     jobId: string; websiteId: string; projectId: string; userId: string;
     url: string; depth: number; crawlBudget: number;
+    targetPagePatterns?: string[];
   };
 
   await prisma.job.update({ where: { id: jobId }, data: { status: 'active', startedAt: new Date() } });
@@ -112,11 +143,15 @@ async function processJob(job: Job) {
   await loadKeywords();
 
   const visited = new Set<string>();
+  // Seed URL is always crawled (depth 0) regardless of targetPagePatterns —
+  // we need its links to discover deeper procurement pages.
   const queue: Array<{ url: string; text: string; score: number; currentDepth: number }> = [
     { url, text: '', score: 1, currentDepth: 0 },
   ];
   let pagesScraped = 0;
-  let startedAt = Date.now();
+  let pagesPersisted = 0;
+  let pagesDeduped = 0;
+  const startedAt = Date.now();
 
   while (queue.length > 0 && pagesScraped < crawlBudget) {
     // Sort by score descending, take highest priority
@@ -136,32 +171,50 @@ async function processJob(job: Job) {
 
     pagesScraped++;
 
-    // Classify with Ollama
-    const classification = await classifyPage(current.url, pageData.title, pageData.body);
+    // Persist full text + hash for every fetched page (Step 2).
+    // Dedupe: if the same (websiteId, url, textHash) was stored in the last 7 days, skip.
+    const fullText = capUtf8(pageData.body ?? '', FULL_TEXT_CAP_BYTES);
+    const textHash = sha256Hex(fullText);
 
-    // Store result if high-value
-    if (classification.classification === 'bidding' || classification.classification === 'selling') {
+    const sevenDaysAgo = new Date(Date.now() - RESULT_DEDUPE_WINDOW_MS);
+    const dupe = await prisma.result.findFirst({
+      where: { websiteId, url: current.url, textHash, foundAt: { gte: sevenDaysAgo } },
+      select: { id: true },
+    });
+
+    if (dupe) {
+      pagesDeduped++;
+    } else {
+      // Classify with Ollama (still inline — independent of persistence)
+      const classification = await classifyPage(current.url, pageData.title, pageData.body);
+
       await prisma.result.create({
         data: {
           websiteId, projectId, userId,
           url: current.url,
           title: pageData.title,
           bodySnippet: pageData.body.slice(0, 500),
+          fullText,
+          textHash,
           classification: classification.classification,
           confidence: classification.confidence,
           reason: classification.reason,
         },
       });
+      pagesPersisted++;
     }
 
-    // Queue child links if not at max depth
+    // Queue child links if not at max depth.
+    // targetPagePatterns filters which children are *eligible* — same-origin links
+    // must additionally match a pattern when patterns are configured.
     if (current.currentDepth < depth) {
       const origin = (() => { try { return new URL(url).origin; } catch { return ''; } })();
       for (const link of pageData.links) {
-        if (!visited.has(link.url) && link.url.startsWith(origin)) {
-          const score = scoreUrl(link.url, link.text, current.currentDepth + 1, historicalDomains);
-          queue.push({ url: link.url, text: link.text, score, currentDepth: current.currentDepth + 1 });
-        }
+        if (visited.has(link.url)) continue;
+        if (!link.url.startsWith(origin)) continue;
+        if (!matchesTargetPattern(link.url, targetPagePatterns)) continue;
+        const score = scoreUrl(link.url, link.text, current.currentDepth + 1, historicalDomains);
+        queue.push({ url: link.url, text: link.text, score, currentDepth: current.currentDepth + 1 });
       }
     }
   }
@@ -181,7 +234,7 @@ async function processJob(job: Job) {
     data: { status: 'idle', lastCrawled: new Date(), totalPages: pagesScraped, yieldRate },
   });
 
-  console.log(`[scraper] ✓ ${url} — ${pagesScraped} pages, ${valueResults} results`);
+  console.log(`[scraper] ✓ ${url} — ${pagesScraped} pages (${pagesPersisted} new, ${pagesDeduped} dedup), ${valueResults} bidding/selling`);
 }
 
 async function handleFailure(job: Job, error: Error) {

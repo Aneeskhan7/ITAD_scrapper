@@ -7,12 +7,18 @@ import { verifyJWT } from '../middleware/auth';
 const router = Router();
 router.use(verifyJWT);
 
+// targetPagePatterns: URL-path substrings (e.g. "/procurement"). Stored lowercased + leading-slash-normalised.
+const PathPatternSchema = z.array(
+  z.string().trim().min(1).max(120)
+).max(50).default([]);
+
 const CreateSchema = z.object({
   url: z.string().url(),
   depth: z.number().int().min(1).max(5).default(2),
   crawlBudget: z.number().int().min(10).max(1000).default(200),
   schedule: z.string().optional(),
   priority: z.enum(['high', 'medium', 'low']).default('medium'),
+  targetPagePatterns: PathPatternSchema,
 });
 
 const UpdateSchema = z.object({
@@ -21,7 +27,17 @@ const UpdateSchema = z.object({
   schedule: z.string().optional().nullable(),
   priority: z.enum(['high', 'medium', 'low']).optional(),
   status: z.enum(['idle', 'crawling', 'queued', 'failed', 'paused']).optional(),
+  targetPagePatterns: PathPatternSchema.optional(),
 });
+
+function normalisePatterns(patterns: string[]): string[] {
+  return Array.from(new Set(
+    patterns
+      .map(p => p.trim().toLowerCase())
+      .map(p => p.startsWith('/') ? p : `/${p}`)
+      .filter(p => p.length > 1)
+  ));
+}
 
 router.get('/project/:projectId', async (req, res, next) => {
   try {
@@ -48,7 +64,16 @@ router.post('/project/:projectId', async (req, res, next) => {
 
     const body = CreateSchema.parse(req.body);
     const website = await prisma.website.create({
-      data: { ...body, projectId: req.params.projectId, userId: req.user!.userId },
+      data: {
+        url: body.url,
+        depth: body.depth,
+        crawlBudget: body.crawlBudget,
+        schedule: body.schedule,
+        priority: body.priority,
+        targetPagePatterns: normalisePatterns(body.targetPagePatterns),
+        projectId: req.params.projectId,
+        userId: req.user!.userId,
+      },
     });
     res.status(201).json(website);
   } catch (err) { next(err); }
@@ -71,7 +96,11 @@ router.get('/:id', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const body = UpdateSchema.parse(req.body);
-    await prisma.website.updateMany({ where: { id: req.params.id, userId: req.user!.userId }, data: body });
+    const data = {
+      ...body,
+      ...(body.targetPagePatterns ? { targetPagePatterns: normalisePatterns(body.targetPagePatterns) } : {}),
+    };
+    await prisma.website.updateMany({ where: { id: req.params.id, userId: req.user!.userId }, data });
     res.json({ ok: true });
   } catch (err) { next(err); }
 });
@@ -102,6 +131,7 @@ router.post('/:id/crawl', async (req, res, next) => {
       jobId: job.id, websiteId: website.id, projectId: website.projectId,
       userId: req.user!.userId, url: website.url, depth: website.depth,
       crawlBudget: website.crawlBudget,
+      targetPagePatterns: website.targetPagePatterns ?? [],
     }, { priority: website.priority === 'high' ? 1 : website.priority === 'medium' ? 5 : 10 });
 
     await prisma.website.update({ where: { id: website.id }, data: { status: 'queued' } });
