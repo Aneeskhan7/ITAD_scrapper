@@ -5,11 +5,11 @@ import { prisma } from './lib/prisma';
 async function seed() {
   console.log('[seed] Starting...');
 
-  // Admin user
+  // Admin user — passwordHash is reset on every seed run so the documented credential always works
   const adminHash = await bcrypt.hash(process.env.ADMIN_PASSWORD ?? 'Admin@123456', 12);
   await prisma.user.upsert({
     where: { email: process.env.ADMIN_EMAIL ?? 'admin@itadintel.io' },
-    update: {},
+    update: { passwordHash: adminHash },
     create: {
       name: 'Admin',
       email: process.env.ADMIN_EMAIL ?? 'admin@itadintel.io',
@@ -20,13 +20,65 @@ async function seed() {
     },
   });
 
-  // Demo user
+  // Demo user — passwordHash reset on every seed run
   const demoHash = await bcrypt.hash('Demo@123456', 12);
-  await prisma.user.upsert({
+  const demoUser = await prisma.user.upsert({
     where: { email: 'john@itadintel.io' },
-    update: {},
+    update: { passwordHash: demoHash },
     create: { name: 'John Doe', email: 'john@itadintel.io', passwordHash: demoHash, plan: 'pro', computeBudget: 20 },
   });
+
+  // Demo project + website + watch keywords (idempotent — only creates if missing)
+  const existingDemoProject = await prisma.project.findFirst({
+    where: { userId: demoUser.id, name: 'K-12 Procurement Watch' },
+  });
+  const demoProject = existingDemoProject ?? await prisma.project.create({
+    data: {
+      userId: demoUser.id,
+      name: 'K-12 Procurement Watch',
+      description: 'Sample project monitoring school-district procurement portals.',
+    },
+  });
+
+  const existingDemoWebsite = await prisma.website.findFirst({
+    where: { projectId: demoProject.id, url: 'https://www.austinisd.org' },
+  });
+  if (!existingDemoWebsite) {
+    await prisma.website.create({
+      data: {
+        projectId: demoProject.id,
+        userId: demoUser.id,
+        url: 'https://www.austinisd.org',
+        depth: 2,
+        crawlBudget: 100,
+        priority: 'medium',
+        targetPagePatterns: ['/procurement', '/purchasing', '/bids', '/rfp'],
+      },
+    });
+  }
+
+  // Demo watch keywords (project-scoped, no website filter)
+  const demoKeywords = [
+    { keyword: 'Chromebook', matchMode: 'contains' },
+    { keyword: 'computer surplus', matchMode: 'contains' },
+    { keyword: 'technology refresh', matchMode: 'contains' },
+    { keyword: 'IT equipment disposition', matchMode: 'contains' },
+  ];
+  for (const kw of demoKeywords) {
+    const existing = await prisma.watchKeyword.findFirst({
+      where: { userId: demoUser.id, projectId: demoProject.id, websiteId: null, keyword: kw.keyword },
+    });
+    if (!existing) {
+      await prisma.watchKeyword.create({
+        data: {
+          userId: demoUser.id,
+          projectId: demoProject.id,
+          keyword: kw.keyword,
+          matchMode: kw.matchMode,
+        },
+      });
+    }
+  }
 
   // Seed keyword patterns
   const keywords = [

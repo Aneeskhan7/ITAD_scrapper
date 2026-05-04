@@ -14,9 +14,12 @@ Run these files in order against your PostgreSQL database:
 ```bash
 psql $DATABASE_URL -f 001_initial_schema.sql
 psql $DATABASE_URL -f 002_seed.sql
+psql $DATABASE_URL -f 003_add_keyword_watchlist.sql
 ```
 
 Or paste them directly into Supabase SQL Editor, Neon console, pgAdmin, or DBeaver.
+
+> **Note:** Prisma migrations under `backend/prisma/migrations/` are now the source of truth. The raw-SQL files are kept for the alternative-path setup but each new schema change ships as both a Prisma migration and a numbered SQL file in this folder.
 
 ## Default credentials after seeding
 | Role  | Email               | Password     |

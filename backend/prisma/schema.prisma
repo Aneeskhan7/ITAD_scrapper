@@ -8,54 +8,65 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  passwordHash  String
-  name          String
-  role          String    @default("user")       // user | admin
-  plan          String    @default("starter")    // starter | pro | enterprise
-  computeBudget Int       @default(5)             // max concurrent agents
-  status        String    @default("active")     // active | suspended
-  projects      Project[]
-  dlqEvents     DlqEvent[]
-  refreshTokens RefreshToken[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                   String         @id @default(cuid())
+  email                String         @unique
+  passwordHash         String
+  name                 String
+  role                 String         @default("user") // user | admin
+  plan                 String         @default("starter") // starter | pro | premium | enterprise
+  computeBudget        Int            @default(5) // max concurrent agents
+  status               String         @default("active") // active | suspended
+  emailNotifications   Boolean        @default(true)
+  emailDigestFrequency String         @default("instant") // instant | hourly | daily
+  inAppNotifications   Boolean        @default(true)
+  unsubscribeToken     String         @unique @default(cuid())
+  projects             Project[]
+  dlqEvents            DlqEvent[]
+  refreshTokens        RefreshToken[]
+  watchKeywords        WatchKeyword[]
+  keywordHits          KeywordHit[]
+  notifications        Notification[]
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
 }
 
 model Project {
-  id          String    @id @default(cuid())
-  userId      String
-  name        String
-  description String?
-  status      String    @default("active")       // active | paused | archived
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  websites    Website[]
-  dlqEvents   DlqEvent[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id            String         @id @default(cuid())
+  userId        String
+  name          String
+  description   String?
+  status        String         @default("active") // active | paused | archived
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  websites      Website[]
+  dlqEvents     DlqEvent[]
+  watchKeywords WatchKeyword[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   @@index([userId])
 }
 
 model Website {
-  id          String    @id @default(cuid())
-  projectId   String
-  userId      String
-  url         String
-  depth       Int       @default(2)
-  crawlBudget Int       @default(200)
-  schedule    String?
-  status      String    @default("idle")          // idle | crawling | queued | failed | paused
-  priority    String    @default("medium")        // high | medium | low
-  lastCrawled DateTime?
-  totalPages  Int       @default(0)
-  yieldRate   Float     @default(0)
-  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  jobs        Job[]
-  results     Result[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                 String         @id @default(cuid())
+  projectId          String
+  userId             String
+  url                String
+  depth              Int            @default(2)
+  crawlBudget        Int            @default(200)
+  schedule           String?
+  status             String         @default("idle") // idle | crawling | queued | failed | paused
+  priority           String         @default("medium") // high | medium | low
+  targetPagePatterns String[]       @default([]) // URL-path substrings (e.g. "/procurement", "/bids"); empty = no filter
+  lastCrawled        DateTime?
+  totalPages         Int            @default(0)
+  yieldRate          Float          @default(0)
+  project            Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  jobs               Job[]
+  results            Result[]
+  watchKeywords      WatchKeyword[]
+  keywordHits        KeywordHit[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   @@index([projectId])
   @@index([userId])
@@ -67,7 +78,7 @@ model Job {
   projectId    String
   userId       String
   url          String
-  status       String    @default("pending")      // pending | active | completed | failed
+  status       String    @default("pending") // pending | active | completed | failed
   retries      Int       @default(0)
   proxyTier    Int?
   proxyId      String?
@@ -87,42 +98,46 @@ model Job {
 }
 
 model Result {
-  id             String   @id @default(cuid())
+  id             String       @id @default(cuid())
   websiteId      String
   projectId      String
   userId         String
   url            String
   title          String?
   bodySnippet    String?
-  classification String                           // bidding | selling | informational | irrelevant
+  fullText       String?      @db.Text // full visible page text for keyword scanning
+  textHash       String? // sha256 of fullText for dedupe
+  classification String // bidding | selling | informational | irrelevant
   confidence     Float
   reason         String?
   rawContent     Json?
-  website        Website  @relation(fields: [websiteId], references: [id], onDelete: Cascade)
-  foundAt        DateTime @default(now())
+  website        Website      @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  keywordHits    KeywordHit[]
+  foundAt        DateTime     @default(now())
 
   @@index([websiteId])
   @@index([projectId])
   @@index([userId])
   @@index([classification])
+  @@index([textHash])
 }
 
 model DlqEvent {
-  id          String   @id @default(cuid())
-  projectId   String
-  websiteId   String
-  userId      String
-  url         String
-  errorType   String                              // timeout | 403_blocked | proxy_exhaustion | parse_failure | domain_expired
-  payload     Json
-  status      String   @default("pending")        // pending | retried | archived
-  retry1At    DateTime?
-  retry2At    DateTime?
-  retry3At    DateTime?
-  resolvedAt  DateTime?
-  project     Project  @relation(fields: [projectId], references: [id])
-  user        User     @relation(fields: [userId], references: [id])
-  createdAt   DateTime @default(now())
+  id         String    @id @default(cuid())
+  projectId  String
+  websiteId  String
+  userId     String
+  url        String
+  errorType  String // timeout | 403_blocked | proxy_exhaustion | parse_failure | domain_expired
+  payload    Json
+  status     String    @default("pending") // pending | retried | archived
+  retry1At   DateTime?
+  retry2At   DateTime?
+  retry3At   DateTime?
+  resolvedAt DateTime?
+  project    Project   @relation(fields: [projectId], references: [id])
+  user       User      @relation(fields: [userId], references: [id])
+  createdAt  DateTime  @default(now())
 
   @@index([projectId])
   @@index([errorType])
@@ -133,29 +148,29 @@ model DlqEvent {
 model ProxyHealth {
   id             String    @id @default(cuid())
   proxyUrl       String    @unique
-  tier           Int                              // 1 | 2 | 3
-  proxyType      String                           // residential | datacenter | rotating
+  tier           Int // 1 | 2 | 3
+  proxyType      String // residential | datacenter | rotating
   ipDisplay      String
   successRate    Float     @default(1.0)
   totalRequests  Int       @default(0)
   cooldownUntil  DateTime?
   blockedDomains String[]  @default([])
   lastUsed       DateTime?
-  status         String    @default("active")     // active | idle | quarantined
+  status         String    @default("active") // active | idle | quarantined
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 }
 
 model TargetPattern {
-  id              String   @id @default(cuid())
-  keyword         String   @unique
-  source          String   @default("seed")       // seed | learned
-  confidenceScore Float    @default(0.5)
-  matchCount      Int      @default(0)
-  firstSeen       DateTime @default(now())
+  id              String    @id @default(cuid())
+  keyword         String    @unique
+  source          String    @default("seed") // seed | learned
+  confidenceScore Float     @default(0.5)
+  matchCount      Int       @default(0)
+  firstSeen       DateTime  @default(now())
   lastMatched     DateTime?
-  status          String   @default("active")     // active | archived | pinned | blocked
-  updatedAt       DateTime @updatedAt
+  status          String    @default("active") // active | archived | pinned | blocked
+  updatedAt       DateTime  @updatedAt
 }
 
 model AgentRegistry {
@@ -163,7 +178,7 @@ model AgentRegistry {
   agentId      String    @unique
   userId       String?
   projectId    String?
-  status       String    @default("idle")         // idle | active | draining | terminated
+  status       String    @default("idle") // idle | active | draining | terminated
   currentJob   String?
   currentUrl   String?
   pagesScraped Int       @default(0)
@@ -182,4 +197,73 @@ model RefreshToken {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+model WatchKeyword {
+  id            String       @id @default(cuid())
+  userId        String
+  projectId     String
+  websiteId     String? // null = applies to all websites in projectId
+  keyword       String
+  matchMode     String       @default("contains") // contains | exact | regex | fuzzy
+  caseSensitive Boolean      @default(false)
+  status        String       @default("active") // active | paused
+  hitCount      Int          @default(0)
+  lastHitAt     DateTime?
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project       Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  website       Website?     @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  hits          KeywordHit[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([websiteId])
+  @@index([keyword])
+  @@index([status])
+}
+
+model KeywordHit {
+  id             String       @id @default(cuid())
+  watchKeywordId String
+  userId         String
+  websiteId      String
+  projectId      String
+  resultId       String?
+  pageUrl        String
+  pageTitle      String?
+  matchedText    String // the literal substring that matched
+  context        String // ~200-char snippet around the match
+  position       Int // char offset in fullText
+  status         String       @default("new") // new | reviewed | relevant | dismissed
+  notifiedInApp  Boolean      @default(false)
+  notifiedEmail  Boolean      @default(false)
+  watchKeyword   WatchKeyword @relation(fields: [watchKeywordId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  website        Website      @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  result         Result?      @relation(fields: [resultId], references: [id], onDelete: SetNull)
+  foundAt        DateTime     @default(now())
+
+  @@unique([watchKeywordId, resultId, position], name: "uniq_hit_per_keyword_result_position")
+  @@index([userId, status])
+  @@index([websiteId])
+  @@index([watchKeywordId])
+  @@index([foundAt])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String // keyword_hit | crawl_complete | dlq_alert | discovery_complete | billing
+  title     String
+  body      String
+  link      String? // deep-link in dashboard
+  payload   Json?
+  readAt    DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@index([createdAt])
 }
