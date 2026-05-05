@@ -43,6 +43,22 @@ export interface TargetPattern {
   matchCount: number; firstSeen: string; lastMatched?: string; status: string;
 }
 
+export interface WatchKeyword {
+  id: string;
+  userId: string;
+  projectId: string;
+  websiteId: string | null;
+  keyword: string;
+  matchMode: 'contains' | 'exact' | 'regex' | 'fuzzy';
+  caseSensitive: boolean;
+  status: string;
+  hitCount: number;
+  lastHitAt: string | null;
+  createdAt: string;
+  project?: { name: string };
+  website?: { url: string } | null;
+}
+
 export interface AgentRegistry {
   id: string; agentId: string; userId?: string; projectId?: string; status: string;
   currentJobId?: string; currentUrl?: string; pagesScraped: number; jobsCompleted: number;

@@ -13,6 +13,7 @@ import resultsRouter from './routes/results';
 import patternsRouter from './routes/patterns';
 import monitorRouter from './routes/monitor';
 import adminRouter from './routes/admin';
+import keywordsRouter from './routes/keywords';
 import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
@@ -31,6 +32,7 @@ app.use('/api/results', resultsRouter);
 app.use('/api/patterns', patternsRouter);
 app.use('/api/monitor', monitorRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/keywords', keywordsRouter);
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
 
