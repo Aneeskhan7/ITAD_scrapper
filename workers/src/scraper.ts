@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import * as crypto from 'crypto';
-import { Worker, Job } from 'bullmq';
+import { Worker, Job, Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import { chromium, Browser, Page } from 'playwright';
 import * as cheerio from 'cheerio';
@@ -13,6 +13,9 @@ const RESULT_DEDUPE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null });
 const prisma = new PrismaClient();
 const DLQ_STREAM = 'dlq-stream';
+
+// Step 3 — fire-and-forget scan enqueue per persisted Result.
+const scanQueue = new Queue('keyword-scan-queue', { connection: redis });
 
 // ── Seed keywords loaded at startup ────────────────────────────────────────
 let KEYWORDS: string[] = [];
@@ -188,7 +191,7 @@ async function processJob(job: Job) {
       // Classify with Ollama (still inline — independent of persistence)
       const classification = await classifyPage(current.url, pageData.title, pageData.body);
 
-      await prisma.result.create({
+      const persisted = await prisma.result.create({
         data: {
           websiteId, projectId, userId,
           url: current.url,
@@ -200,8 +203,14 @@ async function processJob(job: Job) {
           confidence: classification.confidence,
           reason: classification.reason,
         },
+        select: { id: true },
       });
       pagesPersisted++;
+
+      // Step 3 — fire-and-forget keyword scan. Failures here must not break the crawl.
+      scanQueue.add('scan', { resultId: persisted.id }).catch(err =>
+        console.warn(`[scraper] scanQueue.add failed: ${(err as Error).message}`)
+      );
     }
 
     // Queue child links if not at max depth.

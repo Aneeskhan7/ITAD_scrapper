@@ -13,8 +13,8 @@ The active plan is [BUILDINGPLAN.md](BUILDINGPLAN.md) — 12 sequential, deploya
 | 0 — Pre-flight | ⏭ Skipped | User chose to skip the ceremonial prep (tests scaffolding, CI, staging). Redis was installed mid-Step-2 instead. |
 | 1 — Schema migration for keyword watchlist | ✅ Done & verified | Commit `6c444be` |
 | 2 — Scraper persists fullText + honors targetPagePatterns | ✅ Done & verified end-to-end | Commit `6daecec` |
-| **3 — Keyword Scanner Worker** | 🟡 **Next up** | New BullMQ worker that scans `Result.fullText` against active `WatchKeyword`s and writes `KeywordHit` rows. Estimate ~1.5 days. |
-| 4 — Keywords Management API + UI rebuild | ⏳ | |
+| 3 — Keyword Scanner Worker | ✅ Done & verified end-to-end | Commit pending push |
+| **4 — Keywords Management API + UI rebuild** | 🟡 **Next up** | REST endpoints for WatchKeyword CRUD + UI page for managing keywords and viewing hits. |
 | 5 — Hits API + Hits page | ⏳ | |
 | 6 — In-app Notifications (bell + SSE) | ⏳ | |
 | 7 — Email Notifications (instant via Resend) | ⏳ | |
@@ -187,31 +187,32 @@ For Step 10 (Discovery): `BRAVE_SEARCH_API_KEY`, `ANTHROPIC_API_KEY`.
 
 ---
 
-## Step 3 — what to build next
+## What Step 3 added
 
-**Goal:** A new BullMQ worker that consumes a new `keyword-scan-queue`. The scraper already enqueues into this queue at the end of each Result persist (well — *will* enqueue, that wiring is part of Step 3). The scanner loads active `WatchKeyword`s scoped to the result's user + project (and optionally website), runs the configured `matchMode` against `Result.fullText`, and writes `KeywordHit` rows. **No notifications fired yet** — that's Step 6.
+**New files:**
+- [workers/src/keyword-scanner.ts](workers/src/keyword-scanner.ts) — BullMQ worker (concurrency 5) consuming `keyword-scan-queue`. Loads Result + scoped active WatchKeywords, runs matchMode matchers, batch-inserts KeywordHit rows, updates WatchKeyword.hitCount + lastHitAt.
+- [workers/src/scripts/backfill-scans.ts](workers/src/scripts/backfill-scans.ts) — One-shot script: `npx tsx src/scripts/backfill-scans.ts [--days=7] [--projectId=xxx]`
 
-See **§3.1–3.5 of [BUILDINGPLAN.md](BUILDINGPLAN.md)** for the full spec. Key points:
+**Modified files:**
+- [backend/src/lib/bullmq.ts](backend/src/lib/bullmq.ts) — Added `keywordScanQueue` export and `KEYWORD_SCAN_QUEUE` constant.
+- [workers/src/scraper.ts](workers/src/scraper.ts) — After every Result persist, fire-and-forget `scanQueue.add('scan', { resultId })`.
+- [workers/package.json](workers/package.json) — Added `keyword-scanner` to both `dev` and `start` concurrently commands.
+- [workers/package.json](workers/package.json) — Added `safe-regex` dep + `@types/safe-regex` devDep.
 
-1. **New BullMQ queue** `keyword-scan-queue` registered in `backend/src/lib/bullmq.ts`.
-2. **Hook into scraper** — at end of `processJob` after Result persist, fire-and-forget enqueue `{ resultId }` to the new queue.
-3. **New worker** `workers/src/keyword-scanner.ts`:
-   - Job payload: `{ resultId }`. Load Result + matching active WatchKeywords.
-   - Scope match: `userId == result.userId AND ((websiteId IS NULL AND projectId == result.projectId) OR websiteId == result.websiteId) AND status='active'`
-   - Per matchMode:
-     - `contains` — `String.indexOf` with caseSensitive flag
-     - `exact` — `\b<escapedKeyword>\b` regex
-     - `regex` — user-supplied (length cap 200, validated with `safe-regex`, 50ms timeout per attempt)
-     - `fuzzy` — Postgres `pg_trgm` similarity ≥ 0.7 (defer to SQL)
-   - Find ALL match offsets up to 20/keyword/page. 200-char context snippet around each.
-   - Insert `KeywordHit` rows in a transaction. Idempotency via the existing `(watchKeywordId, resultId, position)` unique constraint.
-   - Update `WatchKeyword.hitCount` and `lastHitAt`.
-   - **Do NOT enqueue notifications** — Step 6's `notifier` worker handles that.
-4. **Worker registration**: add to `workers/src/index.ts` (or whatever entry point exists — current setup uses `concurrently` to run scraper + dlq-triage + proxy-health + pattern-learner directly). Concurrency 5.
-5. **Optional backfill script** at `workers/src/scripts/backfill-scans.ts` for one-shot enqueue of recent Results. Useful for testing without re-crawling.
+**Match modes implemented:**
+- `contains` — `String.indexOf` with caseSensitive flag, up to 20 matches
+- `exact` — `\b<escaped>\b` regex with case flag
+- `regex` — user-supplied; safe-regex validated, 200-char max, 50ms timeout per run
+- `fuzzy` — deferred (logs warning, skips); pg_trgm approach for a future Step 3.x
 
-**Suggested testing approach** (since no UI exists yet for adding keywords — that's Step 4):
-- Use the seeded demo WatchKeywords (Chromebook etc.).
+**Verified end-to-end:**
+- 4 seeded WatchKeywords (Chromebook, computer surplus, technology refresh, IT equipment disposition) scanned against a test Result
+- 7 KeywordHit rows inserted; hitCounts updated correctly
+- Idempotency confirmed: re-running the scanner on the same Result produces exactly 0 new rows (skipDuplicates)
+
+---
+
+## Step 4 — what to build next
 - Trigger a crawl; check `KeywordHit` table directly via SQL.
 
 **Watch out for:**
@@ -221,8 +222,6 @@ See **§3.1–3.5 of [BUILDINGPLAN.md](BUILDINGPLAN.md)** for the full spec. Key
 ---
 
 ## Open decisions (still TBD)
-
-These were flagged in NOTEBOOKLM §3.8 but don't block Step 3:
 
 - Email provider — locked in: **Resend** (need account + API key for Step 7).
 - Web search API for Discovery — locked in: **Brave Search API** (need account for Step 10).
@@ -252,4 +251,4 @@ Paste the path or contents into a fresh Claude/NotebookLM session along with [BU
 - Build plan (BUILDINGPLAN)
 - Current execution state (this file)
 
-Then say "start Step 3" and the new session can pick up cleanly.
+Then say "start Step 4" and the new session can pick up cleanly.

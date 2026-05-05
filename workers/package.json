@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n scraper,dlq,proxy,learner -c yellow,red,blue,cyan \"tsx watch src/scraper.ts\" \"tsx watch src/dlq-triage.ts\" \"tsx watch src/proxy-health.ts\" \"tsx watch src/pattern-learner.ts\"",
+    "dev": "concurrently -n scraper,dlq,proxy,learner,scanner -c yellow,red,blue,cyan,green \"tsx watch src/scraper.ts\" \"tsx watch src/dlq-triage.ts\" \"tsx watch src/proxy-health.ts\" \"tsx watch src/pattern-learner.ts\" \"tsx watch src/keyword-scanner.ts\"",
     "build": "tsc",
-    "start": "concurrently \"node dist/scraper.js\" \"node dist/dlq-triage.js\" \"node dist/proxy-health.js\" \"node dist/pattern-learner.js\""
+    "start": "concurrently \"node dist/scraper.js\" \"node dist/dlq-triage.js\" \"node dist/proxy-health.js\" \"node dist/pattern-learner.js\" \"node dist/keyword-scanner.js\""
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
@@ -13,10 +13,12 @@
     "cheerio": "^1.0.0",
     "dotenv": "^16.4.5",
     "ioredis": "^5.6.1",
-    "playwright": "^1.52.0"
+    "playwright": "^1.52.0",
+    "safe-regex": "^2.1.1"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",
+    "@types/safe-regex": "^1.1.6",
     "concurrently": "^8.2.2",
     "tsx": "^4.19.3",
     "typescript": "^5.8.3"

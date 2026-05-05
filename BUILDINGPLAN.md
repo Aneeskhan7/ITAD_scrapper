@@ -637,10 +637,10 @@ New BullMQ queue `discovery-queue`. Per job, four stages, each emitting progress
 
 Tick as you ship.
 
-- [ ] **Step 0** — Pre-flight (Redis, baseline migration, tests, CI, staging, externals locked) — ~2–3 days
-- [ ] **Step 1** — Schema migration for keyword watchlist — ~0.5 day
-- [ ] **Step 2** — Scraper persists full text + honors target pages — ~1 day
-- [ ] **Step 3** — Keyword Scanner Worker — ~1.5 days
+- [x] **Step 0** — Pre-flight (Redis, baseline migration, tests, CI, staging, externals locked) — ~2–3 days
+- [x] **Step 1** — Schema migration for keyword watchlist — ~0.5 day
+- [x] **Step 2** — Scraper persists full text + honors target pages — ~1 day
+- [x] **Step 3** — Keyword Scanner Worker — ~1.5 days
 - [ ] **Step 4** — Keywords Management API + UI rebuild — ~1.5 days
 - [ ] **Step 5** — Hits API + Hits page — ~1.5 days
 - [ ] **Step 6** — In-app Notifications — ~2 days
