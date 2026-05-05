@@ -43,6 +43,33 @@ export interface TargetPattern {
   matchCount: number; firstSeen: string; lastMatched?: string; status: string;
 }
 
+export interface KeywordHit {
+  id: string;
+  watchKeywordId: string;
+  userId: string;
+  websiteId: string;
+  projectId: string;
+  resultId: string | null;
+  pageUrl: string;
+  pageTitle: string | null;
+  matchedText: string;
+  context: string;
+  position: number;
+  status: string;
+  notifiedInApp: boolean;
+  notifiedEmail: boolean;
+  foundAt: string;
+  watchKeyword?: { keyword: string; matchMode: string; caseSensitive: boolean };
+}
+
+export interface HitStats {
+  newLast24h: number;
+  totalLast30d: number;
+  totalRelevant: number;
+  topKeyword: string;
+  byKeyword: Array<{ keyword: string; hitCount: number }>;
+}
+
 export interface WatchKeyword {
   id: string;
   userId: string;

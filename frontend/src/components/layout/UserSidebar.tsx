@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
+import { api } from '@/lib/api';
 
 const NAV = [
-  { id: '/app', icon: '⬡', label: 'Overview' },
-  { id: '/app/projects', icon: '⫸', label: 'Projects' },
-  { id: '/app/results', icon: '◦', label: 'Discoveries' },
-  { id: '/app/dlq', icon: '⚠', label: 'DLQ', badge: true },
-  { id: '/app/keywords', icon: '⬌', label: 'Keywords' },
-  { id: '/app/settings', icon: '⚙', label: 'Settings' },
+  { id: '/app',           icon: '⬡', label: 'Overview' },
+  { id: '/app/projects',  icon: '⫸', label: 'Projects' },
+  { id: '/app/results',   icon: '◦', label: 'Discoveries' },
+  { id: '/app/hits',      icon: '⊕', label: 'Hits', hitsbadge: true },
+  { id: '/app/dlq',       icon: '⚠', label: 'DLQ' },
+  { id: '/app/keywords',  icon: '⬌', label: 'Keywords' },
+  { id: '/app/settings',  icon: '⚙', label: 'Settings' },
 ];
 
 export function UserSidebar() {
@@ -17,6 +20,14 @@ export function UserSidebar() {
   const { pathname } = useLocation();
   const user = useAuthStore(s => s.user);
 
+  const { data: hitStats } = useQuery({
+    queryKey: ['hits-stats'],
+    queryFn: () => api.get('/hits/stats').then(r => r.data as { newLast24h: number }),
+    staleTime: 60_000,
+    enabled: !!user,
+  });
+
+  const newHits = hitStats?.newLast24h ?? 0;
   const isActive = (id: string) => pathname === id || (id !== '/app' && pathname.startsWith(id));
 
   return (
@@ -43,7 +54,19 @@ export function UserSidebar() {
               color: isActive(n.id) ? 'var(--green)' : 'var(--muted)', cursor: 'pointer',
               textAlign: 'left', width: '100%', transition: 'all 0.15s', position: 'relative' }}>
             <span style={{ fontSize: 13, flexShrink: 0 }}>{n.icon}</span>
-            {!collapsed && <span style={{ fontSize: '0.84rem', fontWeight: 500, whiteSpace: 'nowrap' }}>{n.label}</span>}
+            {!collapsed && (
+              <>
+                <span style={{ fontSize: '0.84rem', fontWeight: 500, whiteSpace: 'nowrap', flex: 1 }}>{n.label}</span>
+                {n.hitsbadge && newHits > 0 && (
+                  <span style={{ background: '#dc2626', color: '#fff', borderRadius: 10, padding: '0 6px', fontSize: '0.65rem', fontWeight: 700, minWidth: 18, textAlign: 'center' }}>
+                    {newHits}
+                  </span>
+                )}
+              </>
+            )}
+            {collapsed && n.hitsbadge && newHits > 0 && (
+              <span style={{ position: 'absolute', top: 4, right: 4, width: 8, height: 8, background: '#dc2626', borderRadius: '50%' }} />
+            )}
           </button>
         ))}
       </nav>

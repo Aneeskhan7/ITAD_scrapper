@@ -16,6 +16,7 @@ import { ProjectsPage } from '@/pages/user/ProjectsPage';
 import { ProjectDetailPage } from '@/pages/user/ProjectDetailPage';
 import { WebsiteDetailPage } from '@/pages/user/WebsiteDetailPage';
 import { DiscoveriesPage } from '@/pages/user/DiscoveriesPage';
+import { HitsPage } from '@/pages/user/HitsPage';
 import { UserDLQPage } from '@/pages/user/UserDLQPage';
 import { KeywordsPage } from '@/pages/user/KeywordsPage';
 import { SettingsPage } from '@/pages/user/SettingsPage';
@@ -33,7 +34,7 @@ const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30
 
 const USER_TITLES: Record<string, string> = {
   '/app': 'Overview', '/app/projects': 'Projects', '/app/results': 'Discoveries',
-  '/app/dlq': 'Dead-Letter Queue', '/app/keywords': 'Keyword Corpus', '/app/settings': 'Settings',
+  '/app/hits': 'Keyword Hits', '/app/dlq': 'Dead-Letter Queue', '/app/keywords': 'Keywords', '/app/settings': 'Settings',
 };
 const ADMIN_TITLES: Record<string, string> = {
   '/admin': 'System Overview', '/admin/agents': 'Agent Pool', '/admin/queue': 'Job Queue',
@@ -101,6 +102,7 @@ export default function App() {
               <Route path="/app/projects/:id" element={<ProjectDetailPage />} />
               <Route path="/app/projects/:projectId/websites/:id" element={<WebsiteDetailPage />} />
               <Route path="/app/results" element={<DiscoveriesPage />} />
+              <Route path="/app/hits" element={<HitsPage />} />
               <Route path="/app/dlq" element={<UserDLQPage />} />
               <Route path="/app/keywords" element={<KeywordsPage />} />
               <Route path="/app/settings" element={<SettingsPage />} />

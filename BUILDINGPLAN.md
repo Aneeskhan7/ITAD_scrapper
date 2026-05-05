@@ -641,8 +641,8 @@ Tick as you ship.
 - [x] **Step 1** — Schema migration for keyword watchlist — ~0.5 day
 - [x] **Step 2** — Scraper persists full text + honors target pages — ~1 day
 - [x] **Step 3** — Keyword Scanner Worker — ~1.5 days
-- [ ] **Step 4** — Keywords Management API + UI rebuild — ~1.5 days
-- [ ] **Step 5** — Hits API + Hits page — ~1.5 days
+- [x] **Step 4** — Keywords Management API + UI rebuild — ~1.5 days
+- [x] **Step 5** — Hits API + Hits page — ~1.5 days
 - [ ] **Step 6** — In-app Notifications — ~2 days
 - [ ] **Step 7** — Email Notifications (instant) — ~1.5 days
 - [ ] **Step 8** — Email Digests (hourly / daily) — ~1 day
