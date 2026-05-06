@@ -103,7 +103,7 @@ router.get('/me', verifyJWT, async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.userId },
-      select: { id: true, name: true, email: true, role: true, plan: true, computeBudget: true, status: true, createdAt: true },
+      select: { id: true, name: true, email: true, role: true, plan: true, computeBudget: true, status: true, emailNotifications: true, emailDigestFrequency: true, createdAt: true },
     });
     if (!user) { res.status(404).json({ error: 'User not found' }); return; }
     res.json(user);
@@ -112,11 +112,15 @@ router.get('/me', verifyJWT, async (req, res, next) => {
 
 router.patch('/me', verifyJWT, async (req: any, res: any, next: any) => {
   try {
-    const body = z.object({ name: z.string().min(1).optional() }).parse(req.body);
+    const body = z.object({
+      name: z.string().min(1).optional(),
+      emailNotifications: z.boolean().optional(),
+      emailDigestFrequency: z.enum(['instant', 'hourly', 'daily']).optional(),
+    }).parse(req.body);
     const user = await prisma.user.update({
       where: { id: req.user!.userId },
       data: body,
-      select: { id: true, name: true, email: true, role: true, plan: true, computeBudget: true },
+      select: { id: true, name: true, email: true, role: true, plan: true, computeBudget: true, emailNotifications: true, emailDigestFrequency: true },
     });
     res.json(user);
   } catch (err) { next(err); }

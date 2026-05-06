@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import type { User } from '@/types';
@@ -17,6 +17,7 @@ const PLAN_MAP: Record<string, { label: string; color: string; desc: string; ren
 
 export function SettingsPage() {
   const user = useAuthStore(s => s.user);
+  const qc = useQueryClient();
   const { data: me } = useQuery<User>({ queryKey: ['me'], queryFn: () => api.get('/auth/me').then(r => r.data) });
 
   const [name, setName] = useState(me?.name ?? user?.name ?? '');
@@ -28,8 +29,16 @@ export function SettingsPage() {
   const [retryLimit, setRetryLimit] = useState('3');
   const [dlqThreshold, setDlqThreshold] = useState('10');
   const [computeAlert, setComputeAlert] = useState('80');
-  const [emailDigest, setEmailDigest] = useState(true);
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [emailDigestFrequency, setEmailDigestFrequency] = useState<'instant' | 'hourly' | 'daily'>('instant');
   const [saved, setSaved] = useState<string | null>(null);
+
+  // Sync email prefs from API once loaded
+  useEffect(() => {
+    if (!me) return;
+    if ((me as any).emailNotifications !== undefined) setEmailNotifications((me as any).emailNotifications);
+    if ((me as any).emailDigestFrequency) setEmailDigestFrequency((me as any).emailDigestFrequency);
+  }, [me]);
 
   const planKey = (me as any)?.plan ?? (me as any)?.tier ?? 'free';
   const planInfo = PLAN_MAP[planKey] ?? PLAN_MAP.free;
@@ -42,6 +51,15 @@ export function SettingsPage() {
   const updatePassword = useMutation({
     mutationFn: () => api.post('/auth/change-password', { currentPassword: currentPw, newPassword: newPw }),
     onSuccess: () => { setCurrentPw(''); setNewPw(''); setSaved('password'); setTimeout(() => setSaved(null), 2500); },
+  });
+
+  const updateEmailPrefs = useMutation({
+    mutationFn: () => api.patch('/auth/me', { emailNotifications, emailDigestFrequency }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['me'] });
+      setSaved('email');
+      setTimeout(() => setSaved(null), 2500);
+    },
   });
 
   return (
@@ -162,17 +180,38 @@ export function SettingsPage() {
               <span style={{ fontSize: '0.79rem', color: 'var(--muted)' }}>alert when budget usage exceeds</span>
             </div>
           </div>
-          <div style={{ marginBottom: 20 }}>
-            <label style={LABEL}>Email Digest</label>
+          <div style={{ marginBottom: 14 }}>
+            <label style={LABEL}>Email Notifications</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <button onClick={() => setEmailDigest(v => !v)}
-                style={{ width: 44, height: 24, borderRadius: 12, background: emailDigest ? '#1a9e57' : 'var(--border)', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
-                <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: emailDigest ? 23 : 3, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+              <button onClick={() => setEmailNotifications(v => !v)}
+                style={{ width: 44, height: 24, borderRadius: 12, background: emailNotifications ? '#1a9e57' : 'var(--border)', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
+                <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: emailNotifications ? 23 : 3, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
               </button>
-              <span style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{emailDigest ? 'Daily digest enabled' : 'Digest disabled'}</span>
+              <span style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>{emailNotifications ? 'Enabled' : 'Disabled'}</span>
             </div>
           </div>
-          <button style={BTN_PRIMARY}>Save Alerts</button>
+          <div style={{ marginBottom: 20, opacity: emailNotifications ? 1 : 0.4, pointerEvents: emailNotifications ? 'auto' : 'none' }}>
+            <label style={LABEL}>Digest Frequency</label>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {(['instant', 'hourly', 'daily'] as const).map(f => (
+                <button key={f} onClick={() => setEmailDigestFrequency(f)}
+                  style={{ padding: '6px 14px', borderRadius: 7, border: `1.5px solid ${emailDigestFrequency === f ? 'var(--green)' : 'var(--border)'}`, background: emailDigestFrequency === f ? 'var(--mint)' : 'transparent', color: emailDigestFrequency === f ? 'var(--green)' : 'var(--muted)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 500, textTransform: 'capitalize' }}>
+                  {f}
+                </button>
+              ))}
+            </div>
+            <p style={{ margin: '6px 0 0', fontSize: '0.72rem', color: 'var(--muted)' }}>
+              {emailDigestFrequency === 'instant' && 'One email per keyword match, immediately.'}
+              {emailDigestFrequency === 'hourly' && 'One digest email per hour with all matches.'}
+              {emailDigestFrequency === 'daily' && 'One digest email at 09:00 UTC with all matches.'}
+            </p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button onClick={() => updateEmailPrefs.mutate()} disabled={updateEmailPrefs.isPending} style={BTN_PRIMARY}>
+              {updateEmailPrefs.isPending ? 'Saving…' : 'Save Alerts'}
+            </button>
+            {saved === 'email' && <span style={{ fontSize: '0.79rem', color: 'var(--green)' }}>✓ Saved</span>}
+          </div>
         </div>
 
       </div>

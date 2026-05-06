@@ -15,6 +15,7 @@ import monitorRouter from './routes/monitor';
 import adminRouter from './routes/admin';
 import keywordsRouter from './routes/keywords';
 import hitsRouter from './routes/hits';
+import notificationsRouter from './routes/notifications';
 import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
@@ -35,6 +36,7 @@ app.use('/api/monitor', monitorRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/keywords', keywordsRouter);
 app.use('/api/hits', hitsRouter);
+app.use('/api/notifications', notificationsRouter);
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, ts: new Date().toISOString() }));
 

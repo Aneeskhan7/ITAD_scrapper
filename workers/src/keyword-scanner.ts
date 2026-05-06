@@ -1,11 +1,15 @@
 import 'dotenv/config';
-import { Worker, Job } from 'bullmq';
+import { Worker, Job, Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import { PrismaClient } from '@prisma/client';
 import safeRegex from 'safe-regex';
 
 const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null });
 const prisma = new PrismaClient();
+
+const notifyQueue = new Queue('notify-queue', {
+  connection: new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379', { maxRetriesPerRequest: null }),
+});
 
 const MAX_HITS_PER_KEYWORD = 20;
 const CONTEXT_WINDOW = 200; // chars on each side of match
@@ -192,6 +196,19 @@ async function processJob(job: Job) {
     data: hitsToInsert,
     skipDuplicates: true,
   });
+
+  // Enqueue notification for each newly inserted un-notified hit
+  const newHitIds = await prisma.keywordHit.findMany({
+    where: { resultId: result.id, notifiedInApp: false },
+    select: { id: true },
+  });
+  if (newHitIds.length > 0) {
+    await Promise.all(
+      newHitIds.map(h =>
+        notifyQueue.add('notify', { hitId: h.id }, { removeOnComplete: 100, removeOnFail: 50 })
+      )
+    );
+  }
 
   // Update hitCount and lastHitAt per keyword
   // We use skipDuplicates so actual new rows may be fewer, but for

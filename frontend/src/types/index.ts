@@ -86,6 +86,18 @@ export interface WatchKeyword {
   website?: { url: string } | null;
 }
 
+export interface Notification {
+  id: string;
+  userId: string;
+  type: string;
+  title: string;
+  body: string;
+  link: string | null;
+  payload: Record<string, unknown> | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
 export interface AgentRegistry {
   id: string; agentId: string; userId?: string; projectId?: string; status: string;
   currentJobId?: string; currentUrl?: string; pagesScraped: number; jobsCompleted: number;

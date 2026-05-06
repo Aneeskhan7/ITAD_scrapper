@@ -643,9 +643,9 @@ Tick as you ship.
 - [x] **Step 3** — Keyword Scanner Worker — ~1.5 days
 - [x] **Step 4** — Keywords Management API + UI rebuild — ~1.5 days
 - [x] **Step 5** — Hits API + Hits page — ~1.5 days
-- [ ] **Step 6** — In-app Notifications — ~2 days
-- [ ] **Step 7** — Email Notifications (instant) — ~1.5 days
-- [ ] **Step 8** — Email Digests (hourly / daily) — ~1 day
+- [x] **Step 6** — In-app Notifications — ~2 days
+- [x] **Step 7** — Email Notifications (instant) — ~1.5 days
+- [x] **Step 8** — Email Digests (hourly / daily) — ~1 day
 - [ ] **Step 9** — Stripe Billing + plan enforcement — ~3 days
 - [ ] **Step 10** — AI Business Discovery (Premium) — ~4 days
 - [ ] **Step 11** — Admin & Polish — ~2 days
